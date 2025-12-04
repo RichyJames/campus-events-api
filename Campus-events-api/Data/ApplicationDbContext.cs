@@ -12,6 +12,7 @@ namespace Campus_events_api.Data
 
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Event> Events => Set<Event>();
+        public DbSet<User> Users => Set<User>(); 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

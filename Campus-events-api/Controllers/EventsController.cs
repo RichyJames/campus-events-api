@@ -1,6 +1,7 @@
 ﻿using Campus_events_api.Data;
 using Campus_events_api.Dtos;
 using Campus_events_api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,10 +67,11 @@ public class EventsController : ControllerBase
     }
 
     // POST: api/events
+    // 👇 requires any logged-in user
+    [Authorize]
     [HttpPost]
     public async Task<ActionResult<EventDto>> Create(CreateEventDto dto)
     {
-        // optional: check category exists
         var category = await _context.Categories.FindAsync(dto.CategoryId);
         if (category == null)
             return BadRequest($"Category {dto.CategoryId} does not exist.");
@@ -105,6 +107,8 @@ public class EventsController : ControllerBase
     }
 
     // PUT: api/events/5
+    // 👇 requires any logged-in user
+    [Authorize]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, CreateEventDto dto)
     {
@@ -112,7 +116,6 @@ public class EventsController : ControllerBase
         if (e == null)
             return NotFound();
 
-        // optional: verify category
         var category = await _context.Categories.FindAsync(dto.CategoryId);
         if (category == null)
             return BadRequest($"Category {dto.CategoryId} does not exist.");
@@ -130,6 +133,8 @@ public class EventsController : ControllerBase
     }
 
     // DELETE: api/events/5
+    // 👇 requires any logged-in user
+    [Authorize]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
