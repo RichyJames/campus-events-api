@@ -19,6 +19,7 @@ public class Event
 
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 
     public int Capacity { get; set; }
 

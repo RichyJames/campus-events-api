@@ -133,7 +133,7 @@ public class EventsController : ControllerBase
     }
 
     // DELETE: api/events/5
-    // 👇 requires any logged-in user
+    //  requires any logged-in user
     [Authorize]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
