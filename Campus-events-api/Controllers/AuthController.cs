@@ -24,10 +24,12 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<UserDto>> Register(RegisterDto dto)
     {
-        // check if email is taken
+        // check if email already exists
         var exists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
         if (exists)
+        {
             return BadRequest("Email is already registered.");
+        }
 
         var user = new User
         {
@@ -75,3 +77,4 @@ public class AuthController : ControllerBase
         };
     }
 }
+

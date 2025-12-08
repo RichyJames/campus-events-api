@@ -4,6 +4,7 @@ using Campus_events_api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Campus_events_api.Repositories;
 
 namespace Campus_events_api.Controllers;
 
@@ -11,44 +12,45 @@ namespace Campus_events_api.Controllers;
 [Route("api/[controller]")]
 public class EventsController : ControllerBase
 {
+    private readonly IEventRepository _repository;
     private readonly ApplicationDbContext _context;
 
-    public EventsController(ApplicationDbContext context)
+    public EventsController(IEventRepository repository, ApplicationDbContext context)
     {
+        _repository = repository;
         _context = context;
+        
     }
 
     // GET: api/events
     [HttpGet]
+    [HttpGet]
     public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
     {
-        var events = await _context.Events
-            .Include(e => e.Category)
-            .Select(e => new EventDto
-            {
-                Id = e.Id,
-                Title = e.Title,
-                Description = e.Description,
-                Location = e.Location,
-                StartTime = e.StartTime,
-                EndTime = e.EndTime,
-                Capacity = e.Capacity,
-                CategoryId = e.CategoryId,
-                CategoryName = e.Category.Name
-            })
-            .ToListAsync();
+        var events = await _repository.GetAllAsync();
 
-        return Ok(events);
+        var dtos = events.Select(e => new EventDto
+        {
+            Id = e.Id,
+            Title = e.Title,
+            Description = e.Description,
+            Location = e.Location,
+            StartTime = e.StartTime,
+            EndTime = e.EndTime,
+            Capacity = e.Capacity,
+            CategoryId = e.CategoryId,
+            CategoryName = e.Category.Name
+        }).ToList();
+
+        return Ok(dtos);
     }
+
 
     // GET: api/events/5
     [HttpGet("{id:int}")]
     public async Task<ActionResult<EventDto>> GetById(int id)
     {
-        var e = await _context.Events
-            .Include(ev => ev.Category)
-            .FirstOrDefaultAsync(ev => ev.Id == id);
-
+        var e = await _repository.GetByIdAsync(id);
         if (e == null)
             return NotFound();
 
@@ -65,6 +67,7 @@ public class EventsController : ControllerBase
             CategoryName = e.Category.Name
         };
     }
+
 
     // POST: api/events
     // 👇 requires any logged-in user
@@ -87,8 +90,7 @@ public class EventsController : ControllerBase
             CategoryId = dto.CategoryId
         };
 
-        _context.Events.Add(e);
-        await _context.SaveChangesAsync();
+        await _repository.AddAsync(e);
 
         var result = new EventDto
         {
@@ -105,6 +107,7 @@ public class EventsController : ControllerBase
 
         return CreatedAtAction(nameof(GetById), new { id = e.Id }, result);
     }
+
 
     // PUT: api/events/5
     // 👇 requires any logged-in user
