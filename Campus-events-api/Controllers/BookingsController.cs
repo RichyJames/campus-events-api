@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Campus_events_api.Data;
 using Campus_events_api.Dtos;
 using Campus_events_api.Models;
@@ -24,8 +25,12 @@ public class BookingsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<BookingDto>>> GetMyBookings()
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
-                      ?? User.FindFirstValue(ClaimTypes.Name)!);
+        // user id comes from JWT "sub" claim
+        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (userIdClaim == null)
+            return Unauthorized();
+
+        var userId = int.Parse(userIdClaim);
 
         var bookings = await _context.Bookings
             .Include(b => b.Event)
@@ -53,8 +58,7 @@ public class BookingsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<BookingDto>> Create(CreateBookingDto dto)
     {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                          ?? User.FindFirstValue(ClaimTypes.Name);
+        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (userIdClaim == null)
             return Unauthorized();
 
@@ -83,6 +87,7 @@ public class BookingsController : ControllerBase
         _context.Bookings.Add(booking);
         await _context.SaveChangesAsync();
 
+        // map to DTO
         var dtoResult = new BookingDto
         {
             Id = booking.Id,
@@ -103,8 +108,7 @@ public class BookingsController : ControllerBase
     [HttpPut("{id:int}/cancel")]
     public async Task<IActionResult> Cancel(int id)
     {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                          ?? User.FindFirstValue(ClaimTypes.Name);
+        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (userIdClaim == null)
             return Unauthorized();
 

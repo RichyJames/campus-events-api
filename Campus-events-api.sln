@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Campus-events-api", "Campus-events-api\Campus-events-api.csproj", "{0C0CEC2A-4F6B-4B02-AA6B-8F66C5D60020}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Campus-events-api.Tests", "Campus-events-api.Tests\Campus-events-api.Tests.csproj", "{C35A6629-8163-4435-9310-42EEF6D9319A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{0C0CEC2A-4F6B-4B02-AA6B-8F66C5D60020}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0C0CEC2A-4F6B-4B02-AA6B-8F66C5D60020}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0C0CEC2A-4F6B-4B02-AA6B-8F66C5D60020}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C35A6629-8163-4435-9310-42EEF6D9319A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C35A6629-8163-4435-9310-42EEF6D9319A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C35A6629-8163-4435-9310-42EEF6D9319A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C35A6629-8163-4435-9310-42EEF6D9319A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
