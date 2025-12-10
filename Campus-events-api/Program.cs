@@ -15,9 +15,8 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // ----------------------------------------------------
+        
         // Services
-        // ----------------------------------------------------
 
         // Controllers
         builder.Services.AddControllers();
@@ -95,9 +94,8 @@ public class Program
 
         var app = builder.Build();
 
-        // ----------------------------------------------------
+       
         // Middleware pipeline
-        // ----------------------------------------------------
         if (app.Environment.IsDevelopment())
         {
             app.UseDeveloperExceptionPage();
