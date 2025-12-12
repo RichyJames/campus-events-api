@@ -1,8 +1,10 @@
-﻿using BCrypt.Net;
+﻿using System.Security.Cryptography;
+using System.Text;
 using Campus_events_api.Data;
 using Campus_events_api.Dtos;
 using Campus_events_api.Models;
 using Campus_events_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,68 +15,73 @@ namespace Campus_events_api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IJwtTokenService _tokenService;
+    private readonly IJwtTokenService _jwt;
 
-    public AuthController(ApplicationDbContext context, IJwtTokenService tokenService)
+    public AuthController(ApplicationDbContext context, IJwtTokenService jwt)
     {
         _context = context;
-        _tokenService = tokenService;
+        _jwt = jwt;
     }
 
+    private static string HashPassword(string password)
+    {
+        using var sha = SHA256.Create();
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
+        return Convert.ToBase64String(bytes);
+    }
+
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<UserDto>> Register(RegisterDto dto)
     {
-        // check if email already exists
-        var exists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
-        if (exists)
-        {
+        var existing = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        if (existing != null)
             return BadRequest("Email is already registered.");
-        }
 
         var user = new User
         {
             Name = dto.Name,
             Email = dto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-            Role = dto.Role
+            Role = dto.Role,
+            PasswordHash = HashPassword(dto.Password)
         };
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        var token = _tokenService.GenerateToken(user);
+        var token = _jwt.GenerateToken(user);
 
-        return new UserDto
+        return Ok(new UserDto
         {
             Id = user.Id,
             Name = user.Name,
             Email = user.Email,
             Role = user.Role,
             Token = token
-        };
+        });
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<ActionResult<UserDto>> Login(LoginDto dto)
     {
-        var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == dto.Email);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
         if (user == null)
-            return Unauthorized("Invalid credentials.");
+            return Unauthorized("Invalid email or password.");
 
-        var passwordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-        if (!passwordValid)
-            return Unauthorized("Invalid credentials.");
+        var hash = HashPassword(dto.Password);
+        if (user.PasswordHash != hash)
+            return Unauthorized("Invalid email or password.");
 
-        var token = _tokenService.GenerateToken(user);
+        var token = _jwt.GenerateToken(user);
 
-        return new UserDto
+        return Ok(new UserDto
         {
             Id = user.Id,
             Name = user.Name,
             Email = user.Email,
             Role = user.Role,
             Token = token
-        };
+        });
     }
 }
-

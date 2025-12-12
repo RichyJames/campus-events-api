@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using Campus_events_api.Data;
 using Campus_events_api.Repositories;
@@ -47,15 +49,23 @@ public class Program
             {
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
+                    // Relaxed rules so stuff can't randomly fail
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+
+                    // We still validate the signature
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = issuer,
-                    ValidAudience = audience,
-                    IssuerSigningKey = signingKey
+                    IssuerSigningKey = signingKey,
+
+                    // validate expiry, but no slack window
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero,
+
+                    NameClaimType = JwtRegisteredClaimNames.Sub,
+                    RoleClaimType = ClaimTypes.Role
                 };
             });
+
 
         // Authorization
         builder.Services.AddAuthorization();

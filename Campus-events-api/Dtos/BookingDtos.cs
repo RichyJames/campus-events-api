@@ -1,4 +1,5 @@
 ﻿namespace Campus_events_api.Dtos;
+using System.ComponentModel.DataAnnotations;
 
 public class BookingDto
 {
@@ -16,5 +17,6 @@ public class BookingDto
 
 public class CreateBookingDto
 {
+    [Range(1, int.MaxValue, ErrorMessage = "EventId must be a positive number.")]
     public int EventId { get; set; }
 }

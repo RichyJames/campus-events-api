@@ -1,4 +1,5 @@
-﻿namespace Campus_events_api.Dtos
+﻿using System.ComponentModel.DataAnnotations;
+namespace Campus_events_api.Dtos
 {
     public class CategoryDto
     {
@@ -8,6 +9,8 @@
 
     public class CreateCategoryDto
     {
+        [Required]
+        [StringLength(50, MinimumLength = 2)]
         public string Name { get; set; } = null!;
     }
 }

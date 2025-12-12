@@ -20,22 +20,46 @@ public class BookingsController : ControllerBase
         _context = context;
     }
 
-    // GET: api/bookings (current user's bookings)
+    /// <summary>
+    /// Helper to get the current user Id from JWT ("sub" claim).
+    /// </summary>
+    private int? GetCurrentUserId()
+    {
+        // try sub (what we put in the token)
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        // (optional fallback)
+        if (string.IsNullOrWhiteSpace(sub))
+        {
+            sub = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        }
+
+        if (string.IsNullOrWhiteSpace(sub))
+        {
+            return null;
+        }
+
+        if (int.TryParse(sub, out var id))
+        {
+            return id;
+        }
+
+        return null;
+    }
+
+    // GET: api/bookings  -> current user's bookings
     [Authorize]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<BookingDto>>> GetMyBookings()
     {
-        // user id comes from JWT "sub" claim
-        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (userIdClaim == null)
+        var userId = GetCurrentUserId();
+        if (userId == null)
             return Unauthorized();
-
-        var userId = int.Parse(userIdClaim);
 
         var bookings = await _context.Bookings
             .Include(b => b.Event)
             .Include(b => b.User)
-            .Where(b => b.UserId == userId)
+            .Where(b => b.UserId == userId.Value)
             .Select(b => new BookingDto
             {
                 Id = b.Id,
@@ -52,24 +76,28 @@ public class BookingsController : ControllerBase
         return Ok(bookings);
     }
 
-    // POST: api/bookings
-    // creates a booking for the logged-in user, checks capacity
+    // POST: api/bookings -> create booking for logged-in user, with capacity check
     [Authorize]
     [HttpPost]
     public async Task<ActionResult<BookingDto>> Create(CreateBookingDto dto)
     {
-        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (userIdClaim == null)
+        var userId = GetCurrentUserId();
+        if (userId == null)
             return Unauthorized();
 
-        var userId = int.Parse(userIdClaim);
-
+        // load event with its existing bookings
         var evnt = await _context.Events
             .Include(e => e.Bookings)
             .FirstOrDefaultAsync(e => e.Id == dto.EventId);
 
         if (evnt == null)
             return BadRequest("Event does not exist.");
+
+        var alreadyBooked = evnt.Bookings.Any(b =>
+            b.UserId == userId.Value && b.Status == "Active");
+
+        if (alreadyBooked)
+            return BadRequest("You already have an active booking for this event.");
 
         // capacity check: count active bookings
         var activeBookings = evnt.Bookings.Count(b => b.Status == "Active");
@@ -79,7 +107,7 @@ public class BookingsController : ControllerBase
         var booking = new Booking
         {
             EventId = evnt.Id,
-            UserId = userId,
+            UserId = userId.Value,
             Status = "Active",
             BookedAt = DateTime.UtcNow
         };
@@ -87,7 +115,7 @@ public class BookingsController : ControllerBase
         _context.Bookings.Add(booking);
         await _context.SaveChangesAsync();
 
-        // map to DTO
+        // map to DTO for response
         var dtoResult = new BookingDto
         {
             Id = booking.Id,
@@ -96,32 +124,30 @@ public class BookingsController : ControllerBase
             EventId = evnt.Id,
             EventTitle = evnt.Title,
             EventStartTime = evnt.StartTime,
-            UserId = userId,
+            UserId = userId.Value,
             UserName = User.Identity?.Name ?? ""
         };
 
         return CreatedAtAction(nameof(GetMyBookings), new { }, dtoResult);
     }
 
-    // PUT: api/bookings/{id}/cancel
+    // PUT: api/bookings/{id}/cancel -> cancel your own booking
     [Authorize]
     [HttpPut("{id:int}/cancel")]
     public async Task<IActionResult> Cancel(int id)
     {
-        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (userIdClaim == null)
+        var userId = GetCurrentUserId();
+        if (userId == null)
             return Unauthorized();
 
-        var userId = int.Parse(userIdClaim);
-
         var booking = await _context.Bookings
-            .FirstOrDefaultAsync(b => b.Id == id && b.UserId == userId);
+            .FirstOrDefaultAsync(b => b.Id == id && b.UserId == userId.Value);
 
         if (booking == null)
             return NotFound();
 
         if (booking.Status == "Cancelled")
-            return BadRequest("Booking already cancelled.");
+            return BadRequest("Booking is already cancelled.");
 
         booking.Status = "Cancelled";
         await _context.SaveChangesAsync();
@@ -129,7 +155,7 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
-    // DELETE: api/bookings/{id}  (admin could hard-delete, optional)
+    // DELETE: api/bookings/{id} -> admin hard delete (optional)
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
