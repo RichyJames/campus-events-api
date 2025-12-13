@@ -65,6 +65,17 @@ public class Program
                     RoleClaimType = ClaimTypes.Role
                 };
             });
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("ClientPolicy", policy =>
+            {
+                policy
+                    .WithOrigins("http://localhost:63342") // Rider live preview origin
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+            });
+        });
 
 
         // Authorization
@@ -114,6 +125,7 @@ public class Program
         }
 
         app.UseHttpsRedirection();
+        app.UseCors("ClientPolicy");
 
         app.UseAuthentication();
         app.UseAuthorization();

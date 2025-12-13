@@ -1,0 +1,91 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Campus Events Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; }
+        input, button { margin: 5px 0; padding: 8px; width: 100%; }
+        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; }
+        .event { border-bottom: 1px solid #eee; padding: 10px 0; }
+    </style>
+</head>
+<body>
+
+<h1>🎓 Campus Events Client</h1>
+
+<div class="box">
+    <h2>Login</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p id="loginResult"></p>
+</div>
+
+<div class="box">
+    <h2>Events</h2>
+    <button onclick="loadEvents()">Load Events</button>
+    <div id="events"></div>
+</div>
+
+<script>
+    const API = "http://localhost:5052/api";
+    let token = "";
+
+    async function login() {
+        const res = await fetch(`${API}/Auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: document.getElementById("email").value,
+                password: document.getElementById("password").value
+            })
+        });
+
+        const data = await res.json();
+        token = data.token;
+        document.getElementById("loginResult").innerText =
+            token ? "Logged in successfully" : "Login failed";
+    }
+
+    async function loadEvents() {
+        const res = await fetch(`${API}/Events`);
+        const events = await res.json();
+
+        const container = document.getElementById("events");
+        container.innerHTML = "";
+
+        events.forEach(e => {
+            const div = document.createElement("div");
+            div.className = "event";
+            div.innerHTML = `
+                <strong>${e.title}</strong><br>
+                ${e.location}<br>
+                Capacity: ${e.capacity}<br>
+                <button onclick="bookEvent(${e.id})">Book</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    async function bookEvent(eventId) {
+        const res = await fetch(`${API}/Bookings`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ eventId })
+        });
+
+        if (res.ok) {
+            alert("Booking successful");
+        } else {
+            const msg = await res.text();
+            alert("Booking failed" + msg);
+        }
+    }
+</script>
+
+</body>
+</html>
