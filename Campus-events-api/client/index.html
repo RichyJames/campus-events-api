@@ -220,6 +220,55 @@
             </div>
         </div>
 
+        <!-- Management Panels (only for Organiser/Admin) -->
+        <div id="managementRow" class="grid2 wide hidden" style="margin-bottom:18px;">
+            <!-- Categories -->
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h3>Manage Categories</h3>
+                        <p class="muted small">Organiser/Admin only</p>
+                    </div>
+                    <button class="btn small" id="btnLoadCategories">Load</button>
+                </div>
+
+                <div class="field">
+                    <label>New Category Name</label>
+                    <input id="catName" type="text" placeholder="e.g., Sports" />
+                </div>
+                <button class="btn primary full" id="btnCreateCategory">Create Category</button>
+
+                <div class="divider"></div>
+                <div id="categoriesState" class="state muted">No categories loaded yet.</div>
+                <div id="categoriesList" class="hidden"></div>
+            </div>
+
+            <!-- Events -->
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h3>Create Event</h3>
+                        <p class="muted small">Organiser/Admin only</p>
+                    </div>
+                </div>
+
+                <div class="field"><label>Title</label><input id="evTitle" type="text" /></div>
+                <div class="field"><label>Description</label><input id="evDesc" type="text" /></div>
+                <div class="field"><label>Location</label><input id="evLoc" type="text" /></div>
+                <div class="grid2" style="gap:10px">
+                    <div class="field"><label>Start Time</label><input id="evStart" type="datetime-local" /></div>
+                    <div class="field"><label>End Time</label><input id="evEnd" type="datetime-local" /></div>
+                </div>
+                <div class="grid2" style="gap:10px">
+                    <div class="field"><label>Capacity</label><input id="evCap" type="number" value="10" /></div>
+                    <div class="field"><label>Category Id</label><input id="evCategoryId" type="number" value="1" /></div>
+                </div>
+
+                <button class="btn primary full" id="btnCreateEvent">Create Event</button>
+            </div>
+        </div>
+
+
         <div class="grid2 wide">
             <!-- EVENTS -->
             <div class="card">

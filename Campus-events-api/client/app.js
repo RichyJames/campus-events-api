@@ -51,6 +51,18 @@ function requireAuthOrRedirect() {
     return true;
 }
 
+function getRole() {
+    return (store.role || "").toLowerCase();
+}
+function canManage() {
+    const r = getRole();
+    return r === "admin" || r === "organiser";
+}
+function isAdmin() {
+    return getRole() === "admin";
+}
+
+
 function updateTopbar() {
     const isAuthed = !!store.token;
     const pill = $("pillUser");
@@ -368,15 +380,141 @@ function onRoute() {
         showPage("pageAuth");
     } else if (hash === "#/dashboard") {
         if (!requireAuthOrRedirect()) return;
+
         showPage("pageDashboard");
         $("helloTitle").textContent = `Hello, ${store.userName || "User"} 👋`;
         $("helloSub").textContent = `Role: ${store.role || "Unknown"} • Manage events & bookings`;
+
+        const mgmt = $("managementRow");
+        if (mgmt) {
+            if (canManage()) mgmt.classList.remove("hidden");
+            else mgmt.classList.add("hidden");
+        }
     } else {
         showPage("pageWelcome");
     }
 
     updateTopbar();
 }
+
+async function loadCategories() {
+    $("categoriesState").classList.remove("hidden");
+    $("categoriesState").textContent = "Loading categories...";
+    $("categoriesList").classList.add("hidden");
+
+    try {
+        const cats = await api("/api/Categories"); // public GET
+        renderCategories(cats);
+        toast("Categories loaded.", "good");
+    } catch (e) {
+        $("categoriesState").textContent = e.message;
+        toast(e.message, "bad", 3200);
+    }
+}
+
+function renderCategories(cats) {
+    const box = $("categoriesList");
+    const state = $("categoriesState");
+
+    if (!cats || !cats.length) {
+        state.classList.remove("hidden");
+        state.textContent = "No categories found.";
+        box.classList.add("hidden");
+        return;
+    }
+
+    state.classList.add("hidden");
+    box.classList.remove("hidden");
+
+    box.innerHTML = cats.map(c => `
+    <div class="booking-card" style="margin:10px 0">
+      <div class="booking-top">
+        <div>
+          <div class="booking-title">${escapeHtml(c.name)}</div>
+          <div class="muted small">Category ID: ${c.id}</div>
+        </div>
+        ${isAdmin() ? `<button class="btn small" onclick="deleteCategory(${c.id})">Delete</button>` : ""}
+      </div>
+    </div>
+  `).join("");
+}
+
+async function createCategory() {
+    if (!canManage()) return toast("Only Organiser/Admin can manage categories.", "warn");
+
+    const name = $("catName").value.trim();
+    if (!name) return toast("Enter a category name.", "warn");
+
+    try {
+        await api("/api/Categories", {
+            method: "POST",
+            auth: true,
+            body: { name }
+        });
+        toast("Category created.", "good");
+        $("catName").value = "";
+        await loadCategories();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
+window.deleteCategory = async function(id) {
+    if (!isAdmin()) return toast("Only Admin can delete categories.", "warn");
+
+    try {
+        await api(`/api/Categories/${id}`, { method: "DELETE", auth: true });
+        toast("Category deleted.", "good");
+        await loadCategories();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
+async function createEvent() {
+    if (!canManage()) return toast("Only Organiser/Admin can create events.", "warn");
+
+    const title = $("evTitle").value.trim();
+    const description = $("evDesc").value.trim();
+    const location = $("evLoc").value.trim();
+
+    const startTime = $("evStart").value;
+    const endTime = $("evEnd").value;
+    const capacity = parseInt($("evCap").value, 10);
+    const categoryId = parseInt($("evCategoryId").value, 10);
+
+    if (!title || !startTime || !endTime || !capacity || !categoryId)
+        return toast("Fill in title, times, capacity, categoryId.", "warn");
+
+    
+    try {
+        await api("/api/Events", {
+            method: "POST",
+            auth: true,
+            body: {
+                title,
+                description,
+                location,
+                startTime,
+                endTime,
+                capacity,
+                categoryId
+            }
+        });
+
+        toast("Event created.", "good");
+
+        // clear fields
+        $("evTitle").value = "";
+        $("evDesc").value = "";
+        $("evLoc").value = "";
+
+        await loadEvents();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
 
 // ====== Utilities ======
 function escapeHtml(s) {
@@ -402,7 +540,6 @@ function init() {
 
     $("btnPing").addEventListener("click", async () => {
         try {
-            // simplest endpoint that always exists in template: /WeatherForecast
             await api("/WeatherForecast");
             toast("API is reachable ✅", "good");
         } catch (e) {
@@ -422,8 +559,11 @@ function init() {
         await loadBookings();
     });
 
+    $("btnLoadCategories")?.addEventListener("click", loadCategories);
+    $("btnCreateCategory")?.addEventListener("click", createCategory);
+    $("btnCreateEvent")?.addEventListener("click", createEvent);
+
     $("eventSearch").addEventListener("input", () => {
-        // re-load events filter only if table already loaded
         const wrapVisible = !$("eventsTableWrap").classList.contains("hidden");
         if (wrapVisible) loadEvents();
     });

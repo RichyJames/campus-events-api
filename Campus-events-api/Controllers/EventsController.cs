@@ -71,7 +71,7 @@ public class EventsController : ControllerBase
 
     // POST: api/events
     // 👇 requires any logged-in user
-    [Authorize]
+    [Authorize(Roles = "Organiser,Admin")]
     [HttpPost]
     public async Task<ActionResult<EventDto>> Create(CreateEventDto dto)
     {
@@ -110,8 +110,7 @@ public class EventsController : ControllerBase
 
 
     // PUT: api/events/5
-    // 👇 requires any logged-in user
-    [Authorize]
+    [Authorize(Roles = "Organiser,Admin")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, CreateEventDto dto)
     {
@@ -137,7 +136,7 @@ public class EventsController : ControllerBase
 
     // DELETE: api/events/5
     //  requires any logged-in user
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
