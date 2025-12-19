@@ -89,3 +89,31 @@ This project was developed as part of a **Service-Oriented Architecture (SOA)** 
     - Category → Events
     - Event → Bookings
     - User → Bookings
+ 
+## Testing
+
+### API Testing
+
+- **Postman**
+    - Login to obtain JWT
+    - Demonstrate protected endpoints
+    - Verify role-based access
+- **Swagger UI**
+    - JWT Authorize button
+    - Interactive endpoint testing
+
+### Unit Testing
+
+- xUnit tests included for booking logic
+- Business rules validated (capacity, cancellation, ownership)
+
+---
+
+## ☁ Deployment (Attempted)
+
+- Azure App Service (Windows, .NET 8)
+- Azure SQL Database
+- GitHub Actions CI/CD pipeline
+- Environment variables configured for:
+    - JWT settings
+    - Connection strings
