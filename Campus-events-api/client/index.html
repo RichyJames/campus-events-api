@@ -283,6 +283,23 @@
                     </div>
                 </div>
 
+                <div class="toolbar">
+                    <label>Sort events:</label>
+                    <select id="eventsSortBy">
+                        <option value="startTime">Start Time</option>
+                        <option value="title">Title</option>
+                        <option value="capacity">Capacity</option>
+                    </select>
+
+                    <select id="eventsOrder">
+                        <option value="asc">Asc</option>
+                        <option value="desc">Desc</option>
+                    </select>
+
+                    <button class="btn" onclick="loadEvents()">Load / Refresh</button>
+                </div>
+
+
                 <div id="eventsState" class="state muted">No data loaded yet.</div>
                 <div id="eventsTableWrap" class="hidden"></div>
             </div>
@@ -291,15 +308,46 @@
             <div class="card">
                 <div class="card-head">
                     <div>
-                        <h3>My Bookings</h3>
-                        <p class="muted small">See active bookings and cancel if needed.</p>
+                        <h3 id="bookingsTitle">My Bookings</h3>
+                        <p class="muted small" id="bookingsSub">See active bookings and cancel if needed.</p>
                     </div>
+
                     <button class="btn small" id="btnLoadBookings">Load</button>
+
+                    <button class="btn small hidden" id="btnClearEventBookings">Clear</button>
+                </div>
+
+                <div id="studentBookingsToolbar" class="toolbar">
+                    <label>Sort bookings:</label>
+                    <select id="bookingsSortBy">
+                        <option value="bookedAt">Booked At</option>
+                        <option value="eventStartTime">Event Start Time</option>
+                        <option value="eventTitle">Event Title</option>
+                        <option value="status">Status</option>
+                    </select>
+
+                    <select id="bookingsOrder">
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                    </select>
+
+                    <button class="btn" onclick="loadBookings()">Load / Refresh</button>
+                </div>
+
+                <div id="manageBookingsToolbar" class="toolbar hidden">
+                    <div class="muted small" id="manageBookingsHint">
+                        Click <b>View Bookings</b> on an event to see who booked.
+                    </div>
                 </div>
 
                 <div id="bookingsState" class="state muted">No data loaded yet.</div>
+
                 <div id="bookingsList" class="hidden"></div>
+
+                <div id="eventBookingsList" class="hidden"></div>
             </div>
+
+
         </div>
     </section>
 

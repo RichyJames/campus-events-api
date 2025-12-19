@@ -1,5 +1,4 @@
-﻿// ====== Config / State ======
-const store = {
+﻿const store = {
     get baseUrl() {
         return localStorage.getItem("cp_baseUrl") || "http://localhost:5052";
     },
@@ -14,7 +13,6 @@ const store = {
     set role(v) { v ? localStorage.setItem("cp_role", v) : localStorage.removeItem("cp_role"); },
 };
 
-// ====== DOM Helpers ======
 const $ = (id) => document.getElementById(id);
 
 function toast(msg, type = "good", ms = 2400) {
@@ -58,6 +56,13 @@ function canManage() {
     const r = getRole();
     return r === "admin" || r === "organiser";
 }
+
+
+function canBook() {
+    return getRole() === "student";
+}
+
+
 function isAdmin() {
     return getRole() === "admin";
 }
@@ -82,7 +87,6 @@ function updateTopbar() {
     }
 }
 
-// ====== API ======
 async function api(path, { method="GET", body=null, auth=false } = {}) {
     const url = `${store.baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
     const headers = { "Accept": "application/json" };
@@ -99,13 +103,11 @@ async function api(path, { method="GET", body=null, auth=false } = {}) {
         body: body !== null ? JSON.stringify(body) : null
     });
 
-    // Try parse JSON if possible
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
 
     if (!res.ok) {
-        // show best possible error message
         const message =
             (data && data.title) ? `${data.title}` :
                 (typeof data === "string" && data) ? data :
@@ -120,7 +122,6 @@ async function api(path, { method="GET", body=null, auth=false } = {}) {
     return data;
 }
 
-// ====== Render: Events ======
 function renderEvents(events) {
     const wrap = $("eventsTableWrap");
     const state = $("eventsState");
@@ -136,18 +137,36 @@ function renderEvents(events) {
     wrap.classList.remove("hidden");
 
     const rows = events.map(e => `
-    <tr>
-      <td><b>${escapeHtml(e.title)}</b><div class="muted small">${escapeHtml(e.description || "")}</div></td>
-      <td>${escapeHtml(e.location || "")}</td>
-      <td>${fmtDate(e.startTime)}</td>
-      <td>${fmtDate(e.endTime)}</td>
-      <td>${e.capacity}</td>
-      <td>${escapeHtml(e.categoryName || "")}</td>
-      <td style="text-align:right">
-        <button class="btn small primary" onclick="bookEvent(${e.id})">Book</button>
-      </td>
-    </tr>
-  `).join("");
+<tr>
+  <td>
+    <b>${escapeHtml(e.title)}</b>
+    <div class="muted small">${escapeHtml(e.description || "")}</div>
+  </td>
+
+  <td>${escapeHtml(e.location || "")}</td>
+  <td>${fmtDate(e.startTime)}</td>
+  <td>${fmtDate(e.endTime)}</td>
+  <td>${e.capacity}</td>
+  <td>${escapeHtml(e.categoryName || "")}</td>
+
+  <td style="text-align:right">
+    ${canBook()
+        ? `<button class="btn small primary" onclick="bookEvent(${e.id})">Book</button>`
+        : ""
+    }
+
+    ${canManage()
+        ? `<button class="btn small"
+          ${canBook() ? `style="margin-left:8px"` : ""}
+          onclick="viewEventBookings(${e.id})">
+          View Bookings
+        </button>`
+        : ""
+    }
+  </td>
+</tr>
+`).join("");
+
 
     wrap.innerHTML = `
     <table class="table">
@@ -161,13 +180,44 @@ function renderEvents(events) {
   `;
 }
 
+function renderEventBookings(bookings) {
+    const box = $("eventBookingsList");
+    const state = $("bookingsState");
+
+    if (!bookings || bookings.length === 0) {
+        box.classList.add("hidden");
+        state.classList.remove("hidden");
+        state.textContent = "No bookings yet for this event.";
+        return;
+    }
+
+    state.classList.add("hidden");
+    box.classList.remove("hidden");
+
+    box.innerHTML = bookings.map(b => `
+    <div class="booking-card" id="event-booking-${b.id}">
+      <div class="booking-top">
+        <div>
+          <div class="booking-title">${escapeHtml(b.userName || "User")}</div>
+          <div class="muted small">Booked: ${fmtDate(b.bookedAt)}</div>
+        </div>
+        <div class="pill good">${escapeHtml(b.status || "Active")}</div>
+      </div>
+
+      <div class="booking-actions">
+        <button class="btn small" onclick="removePersonFromEvent(${b.id})">Remove</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+
 function fmtDate(iso) {
     if (!iso) return "";
     const d = new Date(iso);
     return d.toLocaleString();
 }
 
-// ====== Render: Bookings ======
 function bookingCard(b) {
     const statusClass = (b.status || "").toLowerCase() === "cancelled" ? "bad" : "good";
     return `
@@ -217,25 +267,19 @@ document.addEventListener("click", (e) => {
 });
 
 
-// ====== Actions ======
 async function loadEvents() {
     $("eventsState").classList.remove("hidden");
     $("eventsState").textContent = "Loading events...";
-    $("eventsTableWrap").classList.add("hidden");
+    $("eventsTableWrap").classList.add("hidden"); // ✅ correct element
+
+    const sortBy = $("eventsSortBy")?.value || "startTime";
+    const order = $("eventsOrder")?.value || "asc";
 
     try {
-        const events = await api("/api/Events");
-        // search filter client-side
-        const q = ($("eventSearch").value || "").trim().toLowerCase();
-        const filtered = q
-            ? events.filter(e =>
-                (e.title || "").toLowerCase().includes(q) ||
-                (e.location || "").toLowerCase().includes(q) ||
-                (e.categoryName || "").toLowerCase().includes(q)
-            )
-            : events;
-
-        renderEvents(filtered);
+        const list = await api(
+            `/api/Events?sortBy=${encodeURIComponent(sortBy)}&order=${encodeURIComponent(order)}`
+        );
+        renderEvents(list);
         toast("Events loaded.", "good");
     } catch (e) {
         $("eventsState").textContent = e.message;
@@ -243,30 +287,29 @@ async function loadEvents() {
     }
 }
 
+
+
 async function loadBookings() {
+    if (!canBook()) {
+        $("bookingsState").classList.remove("hidden");
+        $("bookingsState").textContent = "Bookings are available for students only.";
+        $("bookingsList").classList.add("hidden");
+        return;
+    }
+
     if (!requireAuthOrRedirect()) return;
 
     $("bookingsState").classList.remove("hidden");
     $("bookingsState").textContent = "Loading bookings...";
     $("bookingsList").classList.add("hidden");
 
+    const sortBy = $("bookingsSortBy")?.value || "bookedAt";
+    const order = $("bookingsOrder")?.value || "desc";
+
     try {
-        const list = await api("/api/Bookings", { auth: true });
-
-        const activeBookings = (list || []).filter(
-            b => (b.status || "").toLowerCase() !== "cancelled"
-        );
-
-        renderBookings(activeBookings);
-
-        if (activeBookings.length === 0) {
-            $("bookingsState").classList.remove("hidden");
-            $("bookingsState").textContent = "No active bookings.";
-        } else {
-            $("bookingsState").classList.add("hidden");
-            $("bookingsList").classList.remove("hidden");
-        }
-
+        const list = await api(`/api/Bookings?sortBy=${encodeURIComponent(sortBy)}&order=${encodeURIComponent(order)}`, { auth: true });
+        const visible = list.filter(b => (b.status || "").toLowerCase() !== "cancelled");
+        renderBookings(visible);
         toast("Bookings loaded.", "good");
     } catch (e) {
         $("bookingsState").textContent = e.message;
@@ -275,21 +318,64 @@ async function loadBookings() {
 }
 
 
+
+
 window.bookEvent = async function(eventId) {
     if (!requireAuthOrRedirect()) return;
 
+    if (!canBook()) {
+        return toast("Only students can book events.", "warn");
+    }
+
     try {
         await api("/api/Bookings", {
-            method:"POST",
-            auth:true,
+            method: "POST",
+            auth: true,
             body: { eventId }
         });
+
         toast("Booking created!", "good");
         await loadBookings();
     } catch (e) {
         toast(e.message, "bad", 3400);
     }
-}
+};
+
+window.viewEventBookings = async function (eventId) {
+    if (!requireAuthOrRedirect()) return;
+    if (!canManage()) return toast("Only Organiser/Admin can view event bookings.", "warn");
+
+    $("bookingsList").classList.add("hidden");
+    $("eventBookingsList").classList.add("hidden");
+    $("bookingsState").classList.remove("hidden");
+    $("bookingsState").textContent = "Loading event bookings...";
+
+    try {
+        const bookings = await api(`/api/Bookings/event/${eventId}`, { auth: true });
+        renderEventBookings(bookings);
+        toast("Event bookings loaded.", "good");
+    } catch (e) {
+        $("bookingsState").textContent = e.message;
+        toast(e.message, "bad", 3200);
+    }
+};
+
+window.removePersonFromEvent = async function (bookingId) {
+    if (!requireAuthOrRedirect()) return;
+    if (!canManage()) return toast("Only Organiser/Admin can remove attendees.", "warn");
+
+    try {
+        await api(`/api/Bookings/${bookingId}/cancel`, { method: "PUT", auth: true });
+
+        const el = document.getElementById(`event-booking-${bookingId}`);
+        if (el) el.remove();
+
+        toast("Attendee removed (booking cancelled).", "good");
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+};
+
 
 window.cancelBooking = async function(bookingId) {
     if (!requireAuthOrRedirect()) return;
@@ -314,7 +400,6 @@ window.cancelBooking = async function(bookingId) {
     }
 }
 
-// ====== Auth ======
 async function register() {
     const name = $("regName").value.trim();
     const email = $("regEmail").value.trim();
@@ -371,7 +456,6 @@ async function login() {
     }
 }
 
-// ====== Router ======
 function onRoute() {
     const hash = location.hash || "#/";
     setActiveNav(hash);
@@ -393,6 +477,28 @@ function onRoute() {
     } else {
         showPage("pageWelcome");
     }
+
+    const isMgr = canManage();
+
+    $("bookingsTitle").textContent = isMgr ? "Event Bookings" : "My Bookings";
+    $("bookingsSub").textContent = isMgr
+        ? "View who booked each event and remove attendees."
+        : "See active bookings and cancel if needed.";
+
+    $("btnLoadBookings").classList.toggle("hidden", isMgr);
+    $("studentBookingsToolbar").classList.toggle("hidden", isMgr);
+
+    $("manageBookingsToolbar").classList.toggle("hidden", !isMgr);
+    $("btnClearEventBookings").classList.toggle("hidden", !isMgr);
+
+    $("bookingsList").classList.add("hidden");
+    $("eventBookingsList").classList.add("hidden");
+    $("bookingsState").classList.remove("hidden");
+    $("bookingsState").textContent = isMgr
+        ? "Select an event and click “View Bookings”."
+        : "No data loaded yet.";
+
+
 
     updateTopbar();
 }
@@ -516,7 +622,6 @@ async function createEvent() {
 }
 
 
-// ====== Utilities ======
 function escapeHtml(s) {
     return String(s ?? "")
         .replaceAll("&","&amp;")
@@ -526,9 +631,7 @@ function escapeHtml(s) {
         .replaceAll("'","&#039;");
 }
 
-// ====== Init ======
 function init() {
-    // base url setup
     $("baseUrl").value = store.baseUrl;
 
     $("btnSaveBaseUrl").addEventListener("click", () => {
@@ -537,6 +640,13 @@ function init() {
         store.baseUrl = v;
         toast(`Saved base URL: ${store.baseUrl}`, "good");
     });
+
+    $("btnClearEventBookings")?.addEventListener("click", () => {
+        $("eventBookingsList").classList.add("hidden");
+        $("bookingsState").classList.remove("hidden");
+        $("bookingsState").textContent = "Select an event and click “View Bookings”.";
+    });
+
 
     $("btnPing").addEventListener("click", async () => {
         try {
@@ -556,8 +666,9 @@ function init() {
     $("btnLoadBookings").addEventListener("click", loadBookings);
     $("btnRefreshAll").addEventListener("click", async () => {
         await loadEvents();
-        await loadBookings();
+        if (canBook()) await loadBookings();
     });
+
 
     $("btnLoadCategories")?.addEventListener("click", loadCategories);
     $("btnCreateCategory")?.addEventListener("click", createCategory);

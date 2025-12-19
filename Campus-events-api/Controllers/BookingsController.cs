@@ -20,15 +20,11 @@ public class BookingsController : ControllerBase
         _context = context;
     }
 
-    /// <summary>
-    /// Helper to get the current user Id from JWT ("sub" claim).
-    /// </summary>
+   
     private int? GetCurrentUserId()
     {
-        // try sub (what we put in the token)
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
 
-        // (optional fallback)
         if (string.IsNullOrWhiteSpace(sub))
         {
             sub = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -47,19 +43,37 @@ public class BookingsController : ControllerBase
         return null;
     }
 
-    // GET: api/bookings  -> current user's bookings
+    // GET: api/bookings  
     [Authorize]
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<BookingDto>>> GetMyBookings()
+    public async Task<ActionResult<IEnumerable<BookingDto>>> GetMyBookings(
+        [FromQuery] string? sortBy = "bookedAt",
+        [FromQuery] string? order = "desc")
     {
         var userId = GetCurrentUserId();
         if (userId == null)
             return Unauthorized();
 
-        var bookings = await _context.Bookings
+        IQueryable<Booking> query = _context.Bookings
             .Include(b => b.Event)
             .Include(b => b.User)
-            .Where(b => b.UserId == userId.Value)
+            .Where(b =>
+                b.UserId == userId.Value &&
+                b.Status == "Active"
+            );
+
+        var sort = (sortBy ?? "bookedAt").Trim().ToLowerInvariant();
+        var desc = (order ?? "desc").Trim().ToLowerInvariant() == "desc";
+
+        query = sort switch
+        {
+            "status" => desc ? query.OrderByDescending(b => b.Status) : query.OrderBy(b => b.Status),
+            "eventtitle" => desc ? query.OrderByDescending(b => b.Event.Title) : query.OrderBy(b => b.Event.Title),
+            "eventstarttime" => desc ? query.OrderByDescending(b => b.Event.StartTime) : query.OrderBy(b => b.Event.StartTime),
+            _ => desc ? query.OrderByDescending(b => b.BookedAt) : query.OrderBy(b => b.BookedAt),
+        };
+
+        var bookings = await query
             .Select(b => new BookingDto
             {
                 Id = b.Id,
@@ -76,7 +90,7 @@ public class BookingsController : ControllerBase
         return Ok(bookings);
     }
 
-    // POST: api/bookings -> create booking for logged-in user, with capacity check
+    // POST: api/bookings 
     [Authorize]
     [HttpPost]
     public async Task<ActionResult<BookingDto>> Create(CreateBookingDto dto)
@@ -131,20 +145,32 @@ public class BookingsController : ControllerBase
         return CreatedAtAction(nameof(GetMyBookings), new { }, dtoResult);
     }
 
-    // PUT: api/bookings/{id}/cancel -> cancel your own booking
+    // PUT: api/bookings/{id}/cancel 
     [Authorize]
     [HttpPut("{id:int}/cancel")]
     public async Task<IActionResult> Cancel(int id)
     {
         var userId = GetCurrentUserId();
-        if (userId == null)
-            return Unauthorized();
+        if (userId == null) return Unauthorized();
 
-        var booking = await _context.Bookings
-            .FirstOrDefaultAsync(b => b.Id == id && b.UserId == userId.Value);
+        var role =
+            User.FindFirstValue(ClaimTypes.Role)
+            ?? User.FindFirstValue("role")
+            ?? "";
 
-        if (booking == null)
-            return NotFound();
+        Booking? booking;
+
+        if (role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+            role.Equals("Organiser", StringComparison.OrdinalIgnoreCase))
+        {
+            booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id);
+        }
+        else
+        {
+            booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id && b.UserId == userId.Value);
+        }
+
+        if (booking == null) return NotFound();
 
         if (booking.Status == "Cancelled")
             return BadRequest("Booking is already cancelled.");
@@ -155,7 +181,8 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
-    // DELETE: api/bookings/{id} -> admin hard delete (optional)
+
+    // DELETE: api/bookings/{id} 
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
@@ -169,4 +196,31 @@ public class BookingsController : ControllerBase
 
         return NoContent();
     }
+    
+    
+// Organisers/Admins can see who booked a specific event
+    [Authorize(Roles = "Organiser,Admin")]
+    [HttpGet("event/{eventId:int}")]
+    public async Task<ActionResult<IEnumerable<BookingDto>>> GetBookingsForEvent(int eventId)
+    {
+        var bookings = await _context.Bookings
+            .Include(b => b.User)
+            .Include(b => b.Event)
+            .Where(b => b.EventId == eventId && b.Status == "Active")
+            .Select(b => new BookingDto
+            {
+                Id = b.Id,
+                BookedAt = b.BookedAt,
+                Status = b.Status,
+                EventId = b.EventId,
+                EventTitle = b.Event.Title,
+                EventStartTime = b.Event.StartTime,
+                UserId = b.UserId,
+                UserName = b.User.Name
+            })
+            .ToListAsync();
+
+        return Ok(bookings);
+    }
+
 }
