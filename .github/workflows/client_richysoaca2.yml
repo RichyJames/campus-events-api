@@ -3,17 +3,14 @@ name: Build and deploy ASP.Net Core app to Azure Web App - RichySoaCa2
 
 on:
   push:
-    branches:
-      - client
+    branches: [ client ]
   workflow_dispatch:
 
-# IMPORTANT: needed so GitHub provides the OIDC token (ACTIONS_ID_TOKEN_REQUEST_URL)
 permissions:
   contents: read
   id-token: write
 
 env:
-  PROJECT_PATH: campus-events-api/Campus-events-api/Campus-events-api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish
 
 jobs:
@@ -21,13 +18,31 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.x"
+
+      - name: List repo files (debug)
+        shell: pwsh
+        run: |
+          Get-Location
+          Get-ChildItem -Force
+          Get-ChildItem -Recurse -Filter *.csproj | Select-Object FullName
+
+      - name: Find csproj
+        id: find
+        shell: pwsh
+        run: |
+          $proj = Get-ChildItem -Recurse -Filter *.csproj |
+                  Where-Object { $_.FullName -notmatch '\\bin\\|\\obj\\' } |
+                  Select-Object -First 1
+
+          if (-not $proj) { throw "No .csproj found in repo!" }
+
+          "PROJECT_PATH=$($proj.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Using PROJECT_PATH=$($proj.FullName)"
 
       - name: Restore
         run: dotnet restore "${{ env.PROJECT_PATH }}"
@@ -69,6 +84,7 @@ jobs:
           app-name: RichySoaCa2
           slot-name: Production
           package: ${{ github.workspace }}/site
+
 
 
 
