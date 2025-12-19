@@ -2,7 +2,8 @@ name: Build and deploy ASP.Net Core app to Azure Web App - RichySoaCa2
 
 on:
   push:
-    branches: [ client ]
+    branches:
+      - client
   workflow_dispatch:
 
 jobs:
@@ -19,22 +20,24 @@ jobs:
         with:
           dotnet-version: '8.x'
 
+      - name: Show csproj path (debug)
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter *.csproj | Select-Object FullName
+
       - name: Restore
-        working-directory: campus-events-api/Campus-events-api
-        run: dotnet restore ./Campus-events-api.csproj
+        run: dotnet restore "campus-events-api/Campus-events-api/Campus-events-api.csproj"
 
       - name: Build
-        working-directory: campus-events-api/Campus-events-api
-        run: dotnet build ./Campus-events-api.csproj -c Release --no-restore
+        run: dotnet build "campus-events-api/Campus-events-api/Campus-events-api.csproj" -c Release --no-restore
 
       - name: Publish
-        working-directory: campus-events-api/Campus-events-api
-        run: dotnet publish ./Campus-events-api.csproj -c Release -o ${{ env.DOTNET_ROOT }}/publish --no-build
+        run: dotnet publish "campus-events-api/Campus-events-api/Campus-events-api.csproj" -c Release -o "${{ env.DOTNET_ROOT }}/publish" --no-build
 
-      - name: Upload published artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: api-publish
+          name: app
           path: ${{ env.DOTNET_ROOT }}/publish
 
   deploy:
@@ -45,10 +48,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Download published artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: api-publish
+          name: app
           path: publish
 
       - name: Login to Azure
@@ -61,6 +64,7 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: RichySoaCa2
-          slot-name: Production
+          app-name: 'RichySoaCa2'
+          slot-name: 'Production'
           package: publish
+
