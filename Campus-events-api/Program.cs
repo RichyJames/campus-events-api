@@ -114,9 +114,14 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.UseDeveloperExceptionPage();
+        }
+
+        if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
+        {
             app.UseSwagger();
             app.UseSwaggerUI();
         }
+
 
         app.UseHttpsRedirection();
 
