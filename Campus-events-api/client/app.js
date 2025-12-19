@@ -1,0 +1,704 @@
+﻿const store = {
+    get baseUrl() {
+        return localStorage.getItem("cp_baseUrl") || "http://localhost:5052";
+    },
+    set baseUrl(v) {
+        localStorage.setItem("cp_baseUrl", v.replace(/\/+$/, "")); // trim trailing /
+    },
+    get token() { return localStorage.getItem("cp_token"); },
+    set token(v) { v ? localStorage.setItem("cp_token", v) : localStorage.removeItem("cp_token"); },
+    get userName() { return localStorage.getItem("cp_userName"); },
+    set userName(v) { v ? localStorage.setItem("cp_userName", v) : localStorage.removeItem("cp_userName"); },
+    get role() { return localStorage.getItem("cp_role"); },
+    set role(v) { v ? localStorage.setItem("cp_role", v) : localStorage.removeItem("cp_role"); },
+};
+
+const $ = (id) => document.getElementById(id);
+
+function toast(msg, type = "good", ms = 2400) {
+    const t = $("toast");
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    t.classList.remove("hidden");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => t.classList.add("hidden"), ms);
+}
+
+function setActiveNav(hash) {
+    const map = {
+        "#/": "navWelcome",
+        "#/auth": "navAuth",
+        "#/dashboard": "navDash",
+    };
+    ["navWelcome","navAuth","navDash"].forEach(id => $(id).classList.remove("active"));
+    const active = map[hash] || "navWelcome";
+    $(active).classList.add("active");
+}
+
+function showPage(name) {
+    ["pageWelcome","pageAuth","pageDashboard"].forEach(p => $(p).classList.add("hidden"));
+    $(name).classList.remove("hidden");
+}
+
+function requireAuthOrRedirect() {
+    if (!store.token) {
+        toast("You must login first.", "warn");
+        location.hash = "#/auth";
+        return false;
+    }
+    return true;
+}
+
+function getRole() {
+    return (store.role || "").toLowerCase();
+}
+function canManage() {
+    const r = getRole();
+    return r === "admin" || r === "organiser";
+}
+
+
+function canBook() {
+    return getRole() === "student";
+}
+
+
+function isAdmin() {
+    return getRole() === "admin";
+}
+
+
+function updateTopbar() {
+    const isAuthed = !!store.token;
+    const pill = $("pillUser");
+    const btnLogout = $("btnLogout");
+
+    if (isAuthed) {
+        pill.textContent = `${store.userName || "User"} • ${store.role || "Role"}`;
+        pill.classList.remove("hidden");
+        btnLogout.classList.remove("hidden");
+        $("authStatus").className = "pill tiny good";
+        $("authStatus").textContent = "Logged in";
+    } else {
+        pill.classList.add("hidden");
+        btnLogout.classList.add("hidden");
+        $("authStatus").className = "pill tiny";
+        $("authStatus").textContent = "Not logged in";
+    }
+}
+
+async function api(path, { method="GET", body=null, auth=false } = {}) {
+    const url = `${store.baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+    const headers = { "Accept": "application/json" };
+
+    if (body !== null) headers["Content-Type"] = "application/json";
+    if (auth) {
+        if (!store.token) throw new Error("Not logged in");
+        headers["Authorization"] = `Bearer ${store.token}`;
+    }
+
+    const res = await fetch(url, {
+        method,
+        headers,
+        body: body !== null ? JSON.stringify(body) : null
+    });
+
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
+
+    if (!res.ok) {
+        const message =
+            (data && data.title) ? `${data.title}` :
+                (typeof data === "string" && data) ? data :
+                    `Request failed (${res.status})`;
+
+        const err = new Error(message);
+        err.status = res.status;
+        err.data = data;
+        throw err;
+    }
+
+    return data;
+}
+
+function renderEvents(events) {
+    const wrap = $("eventsTableWrap");
+    const state = $("eventsState");
+
+    if (!events || !events.length) {
+        wrap.classList.add("hidden");
+        state.classList.remove("hidden");
+        state.textContent = "No events found.";
+        return;
+    }
+
+    state.classList.add("hidden");
+    wrap.classList.remove("hidden");
+
+    const rows = events.map(e => `
+<tr>
+  <td>
+    <b>${escapeHtml(e.title)}</b>
+    <div class="muted small">${escapeHtml(e.description || "")}</div>
+  </td>
+
+  <td>${escapeHtml(e.location || "")}</td>
+  <td>${fmtDate(e.startTime)}</td>
+  <td>${fmtDate(e.endTime)}</td>
+  <td>${e.capacity}</td>
+  <td>${escapeHtml(e.categoryName || "")}</td>
+
+  <td style="text-align:right">
+    ${canBook()
+        ? `<button class="btn small primary" onclick="bookEvent(${e.id})">Book</button>`
+        : ""
+    }
+
+    ${canManage()
+        ? `<button class="btn small"
+          ${canBook() ? `style="margin-left:8px"` : ""}
+          onclick="viewEventBookings(${e.id})">
+          View Bookings
+        </button>`
+        : ""
+    }
+  </td>
+</tr>
+`).join("");
+
+
+    wrap.innerHTML = `
+    <table class="table">
+      <thead>
+      <tr>
+        <th>Title</th><th>Location</th><th>Start</th><th>End</th><th>Cap.</th><th>Category</th><th></th>
+      </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderEventBookings(bookings) {
+    const box = $("eventBookingsList");
+    const state = $("bookingsState");
+
+    if (!bookings || bookings.length === 0) {
+        box.classList.add("hidden");
+        state.classList.remove("hidden");
+        state.textContent = "No bookings yet for this event.";
+        return;
+    }
+
+    state.classList.add("hidden");
+    box.classList.remove("hidden");
+
+    box.innerHTML = bookings.map(b => `
+    <div class="booking-card" id="event-booking-${b.id}">
+      <div class="booking-top">
+        <div>
+          <div class="booking-title">${escapeHtml(b.userName || "User")}</div>
+          <div class="muted small">Booked: ${fmtDate(b.bookedAt)}</div>
+        </div>
+        <div class="pill good">${escapeHtml(b.status || "Active")}</div>
+      </div>
+
+      <div class="booking-actions">
+        <button class="btn small" onclick="removePersonFromEvent(${b.id})">Remove</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+
+function fmtDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleString();
+}
+
+function bookingCard(b) {
+    const statusClass = (b.status || "").toLowerCase() === "cancelled" ? "bad" : "good";
+    return `
+  <div class="booking-card" id="booking-${b.id}">
+    <div class="booking-top">
+      <div>
+        <div class="booking-title">${escapeHtml(b.eventTitle || "Event")}</div>
+        <div class="muted small">Start: ${fmtDate(b.eventStartTime)}</div>
+      </div>
+      <div class="pill ${statusClass}">${escapeHtml(b.status || "")}</div>
+    </div>
+
+    <div class="booking-meta">
+      <div><b>Booking ID:</b> ${b.id}</div>
+      <div><b>Event ID:</b> ${b.eventId}</div>
+      <div><b>Booked At:</b> ${fmtDate(b.bookedAt)}</div>
+      <div><b>User:</b> ${escapeHtml(b.userName || store.userName || "")}</div>
+    </div>
+
+    <div class="booking-actions">
+      <button class="btn small" onclick="cancelBooking(${b.id})">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function renderBookings(list) {
+    const box = $("bookingsList");
+    const state = $("bookingsState");
+
+    if (!list || !list.length) {
+        box.classList.add("hidden");
+        state.classList.remove("hidden");
+        state.textContent = "No bookings yet.";
+        return;
+    }
+
+    state.classList.add("hidden");
+    box.classList.remove("hidden");
+    box.innerHTML = list.map(bookingCard).join("");
+}
+document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".quick");
+    if (!btn) return;
+    const url = btn.dataset.url;
+    const input = document.getElementById("baseUrl");
+    if (input && url) input.value = url;
+});
+
+
+async function loadEvents() {
+    $("eventsState").classList.remove("hidden");
+    $("eventsState").textContent = "Loading events...";
+    $("eventsTableWrap").classList.add("hidden"); // ✅ correct element
+
+    const sortBy = $("eventsSortBy")?.value || "startTime";
+    const order = $("eventsOrder")?.value || "asc";
+
+    try {
+        const list = await api(
+            `/api/Events?sortBy=${encodeURIComponent(sortBy)}&order=${encodeURIComponent(order)}`
+        );
+        renderEvents(list);
+        toast("Events loaded.", "good");
+    } catch (e) {
+        $("eventsState").textContent = e.message;
+        toast(e.message, "bad", 3200);
+    }
+}
+
+
+
+async function loadBookings() {
+    if (!canBook()) {
+        $("bookingsState").classList.remove("hidden");
+        $("bookingsState").textContent = "Bookings are available for students only.";
+        $("bookingsList").classList.add("hidden");
+        return;
+    }
+
+    if (!requireAuthOrRedirect()) return;
+
+    $("bookingsState").classList.remove("hidden");
+    $("bookingsState").textContent = "Loading bookings...";
+    $("bookingsList").classList.add("hidden");
+
+    const sortBy = $("bookingsSortBy")?.value || "bookedAt";
+    const order = $("bookingsOrder")?.value || "desc";
+
+    try {
+        const list = await api(`/api/Bookings?sortBy=${encodeURIComponent(sortBy)}&order=${encodeURIComponent(order)}`, { auth: true });
+        const visible = list.filter(b => (b.status || "").toLowerCase() !== "cancelled");
+        renderBookings(visible);
+        toast("Bookings loaded.", "good");
+    } catch (e) {
+        $("bookingsState").textContent = e.message;
+        toast(e.message, "bad", 3200);
+    }
+}
+
+
+
+
+window.bookEvent = async function(eventId) {
+    if (!requireAuthOrRedirect()) return;
+
+    if (!canBook()) {
+        return toast("Only students can book events.", "warn");
+    }
+
+    try {
+        await api("/api/Bookings", {
+            method: "POST",
+            auth: true,
+            body: { eventId }
+        });
+
+        toast("Booking created!", "good");
+        await loadBookings();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+};
+
+window.viewEventBookings = async function (eventId) {
+    if (!requireAuthOrRedirect()) return;
+    if (!canManage()) return toast("Only Organiser/Admin can view event bookings.", "warn");
+
+    $("bookingsList").classList.add("hidden");
+    $("eventBookingsList").classList.add("hidden");
+    $("bookingsState").classList.remove("hidden");
+    $("bookingsState").textContent = "Loading event bookings...";
+
+    try {
+        const bookings = await api(`/api/Bookings/event/${eventId}`, { auth: true });
+        renderEventBookings(bookings);
+        toast("Event bookings loaded.", "good");
+    } catch (e) {
+        $("bookingsState").textContent = e.message;
+        toast(e.message, "bad", 3200);
+    }
+};
+
+window.removePersonFromEvent = async function (bookingId) {
+    if (!requireAuthOrRedirect()) return;
+    if (!canManage()) return toast("Only Organiser/Admin can remove attendees.", "warn");
+
+    try {
+        await api(`/api/Bookings/${bookingId}/cancel`, { method: "PUT", auth: true });
+
+        const el = document.getElementById(`event-booking-${bookingId}`);
+        if (el) el.remove();
+
+        toast("Attendee removed (booking cancelled).", "good");
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+};
+
+
+window.cancelBooking = async function(bookingId) {
+    if (!requireAuthOrRedirect()) return;
+
+    try {
+        await api(`/api/Bookings/${bookingId}/cancel`, { method:"PUT", auth:true });
+
+        const el = document.getElementById(`booking-${bookingId}`);
+        if (el) el.remove();
+
+        toast("Booking cancelled.", "good");
+
+        const list = document.getElementById("bookingsList");
+        if (list && list.children.length === 0) {
+            list.classList.add("hidden");
+            const state = document.getElementById("bookingsState");
+            state.classList.remove("hidden");
+            state.textContent = "No bookings yet.";
+        }
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
+async function register() {
+    const name = $("regName").value.trim();
+    const email = $("regEmail").value.trim();
+    const password = $("regPassword").value;
+    const role = $("regRole").value;
+
+    if (!name || !email || !password) {
+        toast("Please fill in name, email, password.", "warn");
+        return;
+    }
+
+    try {
+        const user = await api("/api/Auth/register", {
+            method:"POST",
+            body: { name, email, password, role }
+        });
+
+        store.token = user.token;
+        store.userName = user.name;
+        store.role = user.role;
+        updateTopbar();
+
+        toast("Registered & logged in!", "good");
+        location.hash = "#/dashboard";
+    } catch (e) {
+        toast(e.message, "bad", 3500);
+    }
+}
+
+async function login() {
+    const email = $("loginEmail").value.trim();
+    const password = $("loginPassword").value;
+
+    if (!email || !password) {
+        toast("Enter email and password.", "warn");
+        return;
+    }
+
+    try {
+        const user = await api("/api/Auth/login", {
+            method:"POST",
+            body: { email, password }
+        });
+
+        store.token = user.token;
+        store.userName = user.name;
+        store.role = user.role;
+        updateTopbar();
+
+        toast("Logged in!", "good");
+        location.hash = "#/dashboard";
+    } catch (e) {
+        toast(e.message, "bad", 3500);
+    }
+}
+
+function onRoute() {
+    const hash = location.hash || "#/";
+    setActiveNav(hash);
+
+    if (hash === "#/auth") {
+        showPage("pageAuth");
+    } else if (hash === "#/dashboard") {
+        if (!requireAuthOrRedirect()) return;
+
+        showPage("pageDashboard");
+        $("helloTitle").textContent = `Hello, ${store.userName || "User"} 👋`;
+        $("helloSub").textContent = `Role: ${store.role || "Unknown"} • Manage events & bookings`;
+
+        const mgmt = $("managementRow");
+        if (mgmt) {
+            if (canManage()) mgmt.classList.remove("hidden");
+            else mgmt.classList.add("hidden");
+        }
+    } else {
+        showPage("pageWelcome");
+    }
+
+    const isMgr = canManage();
+
+    $("bookingsTitle").textContent = isMgr ? "Event Bookings" : "My Bookings";
+    $("bookingsSub").textContent = isMgr
+        ? "View who booked each event and remove attendees."
+        : "See active bookings and cancel if needed.";
+
+    $("btnLoadBookings").classList.toggle("hidden", isMgr);
+    $("studentBookingsToolbar").classList.toggle("hidden", isMgr);
+
+    $("manageBookingsToolbar").classList.toggle("hidden", !isMgr);
+    $("btnClearEventBookings").classList.toggle("hidden", !isMgr);
+
+    $("bookingsList").classList.add("hidden");
+    $("eventBookingsList").classList.add("hidden");
+    $("bookingsState").classList.remove("hidden");
+    $("bookingsState").textContent = isMgr
+        ? "Select an event and click “View Bookings”."
+        : "No data loaded yet.";
+
+
+
+    updateTopbar();
+}
+
+async function loadCategories() {
+    $("categoriesState").classList.remove("hidden");
+    $("categoriesState").textContent = "Loading categories...";
+    $("categoriesList").classList.add("hidden");
+
+    try {
+        const cats = await api("/api/Categories"); // public GET
+        renderCategories(cats);
+        toast("Categories loaded.", "good");
+    } catch (e) {
+        $("categoriesState").textContent = e.message;
+        toast(e.message, "bad", 3200);
+    }
+}
+
+function renderCategories(cats) {
+    const box = $("categoriesList");
+    const state = $("categoriesState");
+
+    if (!cats || !cats.length) {
+        state.classList.remove("hidden");
+        state.textContent = "No categories found.";
+        box.classList.add("hidden");
+        return;
+    }
+
+    state.classList.add("hidden");
+    box.classList.remove("hidden");
+
+    box.innerHTML = cats.map(c => `
+    <div class="booking-card" style="margin:10px 0">
+      <div class="booking-top">
+        <div>
+          <div class="booking-title">${escapeHtml(c.name)}</div>
+          <div class="muted small">Category ID: ${c.id}</div>
+        </div>
+        ${isAdmin() ? `<button class="btn small" onclick="deleteCategory(${c.id})">Delete</button>` : ""}
+      </div>
+    </div>
+  `).join("");
+}
+
+async function createCategory() {
+    if (!canManage()) return toast("Only Organiser/Admin can manage categories.", "warn");
+
+    const name = $("catName").value.trim();
+    if (!name) return toast("Enter a category name.", "warn");
+
+    try {
+        await api("/api/Categories", {
+            method: "POST",
+            auth: true,
+            body: { name }
+        });
+        toast("Category created.", "good");
+        $("catName").value = "";
+        await loadCategories();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
+window.deleteCategory = async function(id) {
+    if (!isAdmin()) return toast("Only Admin can delete categories.", "warn");
+
+    try {
+        await api(`/api/Categories/${id}`, { method: "DELETE", auth: true });
+        toast("Category deleted.", "good");
+        await loadCategories();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
+async function createEvent() {
+    if (!canManage()) return toast("Only Organiser/Admin can create events.", "warn");
+
+    const title = $("evTitle").value.trim();
+    const description = $("evDesc").value.trim();
+    const location = $("evLoc").value.trim();
+
+    const startTime = $("evStart").value;
+    const endTime = $("evEnd").value;
+    const capacity = parseInt($("evCap").value, 10);
+    const categoryId = parseInt($("evCategoryId").value, 10);
+
+    if (!title || !startTime || !endTime || !capacity || !categoryId)
+        return toast("Fill in title, times, capacity, categoryId.", "warn");
+
+    
+    try {
+        await api("/api/Events", {
+            method: "POST",
+            auth: true,
+            body: {
+                title,
+                description,
+                location,
+                startTime,
+                endTime,
+                capacity,
+                categoryId
+            }
+        });
+
+        toast("Event created.", "good");
+
+        // clear fields
+        $("evTitle").value = "";
+        $("evDesc").value = "";
+        $("evLoc").value = "";
+
+        await loadEvents();
+    } catch (e) {
+        toast(e.message, "bad", 3400);
+    }
+}
+
+
+function escapeHtml(s) {
+    return String(s ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+}
+
+function init() {
+    $("baseUrl").value = store.baseUrl;
+
+    $("btnSaveBaseUrl").addEventListener("click", () => {
+        const v = $("baseUrl").value.trim();
+        if (!v) return toast("Enter a base URL.", "warn");
+        store.baseUrl = v;
+        toast(`Saved base URL: ${store.baseUrl}`, "good");
+    });
+
+    $("btnClearEventBookings")?.addEventListener("click", () => {
+        $("eventBookingsList").classList.add("hidden");
+        $("bookingsState").classList.remove("hidden");
+        $("bookingsState").textContent = "Select an event and click “View Bookings”.";
+    });
+
+
+    $("btnPing").addEventListener("click", async () => {
+        try {
+            await api("/WeatherForecast");
+            toast("API is reachable ✅", "good");
+        } catch (e) {
+            toast(`API not reachable: ${e.message}`, "bad", 3500);
+        }
+    });
+
+    // auth buttons
+    $("btnRegister").addEventListener("click", register);
+    $("btnLogin").addEventListener("click", login);
+
+    // dash buttons
+    $("btnLoadEvents").addEventListener("click", loadEvents);
+    $("btnLoadBookings").addEventListener("click", loadBookings);
+    $("btnRefreshAll").addEventListener("click", async () => {
+        await loadEvents();
+        if (canBook()) await loadBookings();
+    });
+
+
+    $("btnLoadCategories")?.addEventListener("click", loadCategories);
+    $("btnCreateCategory")?.addEventListener("click", createCategory);
+    $("btnCreateEvent")?.addEventListener("click", createEvent);
+
+    $("eventSearch").addEventListener("input", () => {
+        const wrapVisible = !$("eventsTableWrap").classList.contains("hidden");
+        if (wrapVisible) loadEvents();
+    });
+
+    $("btnClearToken").addEventListener("click", () => {
+        store.token = null;
+        store.userName = null;
+        store.role = null;
+        updateTopbar();
+        toast("Session cleared.", "warn");
+        location.hash = "#/auth";
+    });
+
+    $("btnLogout").addEventListener("click", () => {
+        store.token = null;
+        store.userName = null;
+        store.role = null;
+        updateTopbar();
+        toast("Logged out.", "warn");
+        location.hash = "#/";
+    });
+
+    window.addEventListener("hashchange", onRoute);
+    onRoute();
+}
+
+init();

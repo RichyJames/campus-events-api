@@ -24,10 +24,25 @@ public class EventsController : ControllerBase
 
     // GET: api/events
     [HttpGet]
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<EventDto>>> GetAll(
+        [FromQuery] string? sortBy = "startTime",
+        [FromQuery] string? order = "asc")
     {
-        var events = await _repository.GetAllAsync();
+        IQueryable<Event> query = _context.Events
+            .Include(e => e.Category);
+
+        var sort = (sortBy ?? "startTime").Trim().ToLowerInvariant();
+        var desc = (order ?? "asc").Trim().ToLowerInvariant() == "desc";
+
+        query = sort switch
+        {
+            "title" => desc ? query.OrderByDescending(e => e.Title) : query.OrderBy(e => e.Title),
+            "capacity" => desc ? query.OrderByDescending(e => e.Capacity) : query.OrderBy(e => e.Capacity),
+            "endtime" => desc ? query.OrderByDescending(e => e.EndTime) : query.OrderBy(e => e.EndTime),
+            _ => desc ? query.OrderByDescending(e => e.StartTime) : query.OrderBy(e => e.StartTime),
+        };
+
+        var events = await query.ToListAsync();
 
         var dtos = events.Select(e => new EventDto
         {
@@ -44,6 +59,7 @@ public class EventsController : ControllerBase
 
         return Ok(dtos);
     }
+
 
 
     // GET: api/events/5
@@ -71,7 +87,7 @@ public class EventsController : ControllerBase
 
     // POST: api/events
     // 👇 requires any logged-in user
-    [Authorize]
+    [Authorize(Roles = "Organiser,Admin")]
     [HttpPost]
     public async Task<ActionResult<EventDto>> Create(CreateEventDto dto)
     {
@@ -110,8 +126,7 @@ public class EventsController : ControllerBase
 
 
     // PUT: api/events/5
-    // 👇 requires any logged-in user
-    [Authorize]
+    [Authorize(Roles = "Organiser,Admin")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, CreateEventDto dto)
     {
@@ -137,7 +152,7 @@ public class EventsController : ControllerBase
 
     // DELETE: api/events/5
     //  requires any logged-in user
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

@@ -17,9 +17,6 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        
-        // Services
-
         // Controllers
         builder.Services.AddControllers();
 
@@ -42,71 +39,70 @@ public class Program
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
 
-        // Authentication
+        // Authentication (JWT Bearer)
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    // Relaxed rules so stuff can't randomly fail
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-
-                    // We still validate the signature
+                    // Keep strict if you want:
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
+
+                    ValidIssuer = issuer,
+                    ValidAudience = audience,
                     IssuerSigningKey = signingKey,
 
-                    // validate expiry, but no slack window
-                    ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero,
 
-                    NameClaimType = JwtRegisteredClaimNames.Sub,
-                    RoleClaimType = ClaimTypes.Role
+                    NameClaimType = ClaimTypes.Name,     
+                    RoleClaimType = ClaimTypes.Role    
                 };
             });
+
+        // Authorization
+        builder.Services.AddAuthorization();
+
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("ClientPolicy", policy =>
             {
                 policy
-                    .WithOrigins("http://localhost:63342") // Rider live preview origin
+                    .WithOrigins("http://localhost:63342")
                     .AllowAnyHeader()
-                    .AllowAnyMethod()
-                    .AllowCredentials();
+                    .AllowAnyMethod();
             });
         });
 
-
-        // Authorization
-        builder.Services.AddAuthorization();
-
-        // Swagger + JWT support
+        // Swagger
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {
+            
+            options.EnableAnnotations();
+
             options.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "Campus-events-api",
-                Version = "v1"
+                Title = "Campus Events API",
+                Version = "v1",
+                Description = "API for categories, events, bookings, and JWT-based authentication"
             });
 
             var securityScheme = new OpenApiSecurityScheme
             {
                 Name = "Authorization",
-                Description = "Enter 'Bearer {your JWT token}'",
+                Description = "Enter: Bearer {your JWT token}",
                 In = ParameterLocation.Header,
                 Type = SecuritySchemeType.Http,
                 Scheme = "bearer",
-                BearerFormat = "JWT",
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                BearerFormat = "JWT"
             };
 
             options.AddSecurityDefinition("Bearer", securityScheme);
+
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 { securityScheme, Array.Empty<string>() }
@@ -115,16 +111,20 @@ public class Program
 
         var app = builder.Build();
 
-       
-        // Middleware pipeline
         if (app.Environment.IsDevelopment())
         {
             app.UseDeveloperExceptionPage();
+        }
+
+        if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
+        {
             app.UseSwagger();
             app.UseSwaggerUI();
         }
 
+
         app.UseHttpsRedirection();
+
         app.UseCors("ClientPolicy");
 
         app.UseAuthentication();

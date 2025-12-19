@@ -3,6 +3,8 @@ using Campus_events_api.Dtos;
 using Campus_events_api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+
 
 namespace Campus_events_api.Controllers
 {
@@ -45,6 +47,7 @@ namespace Campus_events_api.Controllers
             };
         }
         
+        [Authorize(Roles = "Organiser,Admin")]
         [HttpPost]
         public async Task<ActionResult<CategoryDto>> Create(CreateCategoryDto dto)
         {
@@ -60,6 +63,7 @@ namespace Campus_events_api.Controllers
             );
         }
 
+        [Authorize(Roles = "Organiser,Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, CreateCategoryDto dto)
         {
@@ -74,6 +78,7 @@ namespace Campus_events_api.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

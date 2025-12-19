@@ -1,91 +1,364 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Campus Events Client</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; }
-        input, button { margin: 5px 0; padding: 8px; width: 100%; }
-        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; }
-        .event { border-bottom: 1px solid #eee; padding: 10px 0; }
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CampusPulse | Campus Events</title>
+    <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body>
-
-<h1>🎓 Campus Events Client</h1>
-
-<div class="box">
-    <h2>Login</h2>
-    <input id="email" placeholder="Email">
-    <input id="password" type="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-    <p id="loginResult"></p>
+<div class="bg">
+    <div class="noise"></div>
+    <div class="glow g1"></div>
+    <div class="glow g2"></div>
 </div>
 
-<div class="box">
-    <h2>Events</h2>
-    <button onclick="loadEvents()">Load Events</button>
-    <div id="events"></div>
-</div>
+<header class="topbar">
+    <div class="brand">
+        <div class="logo">CP</div>
+        <div class="brand-text">
+            <div class="brand-name">CampusPulse</div>
+            <div class="brand-sub">Campus Events & Bookings</div>
+        </div>
+    </div>
 
-<script>
-    const API = "http://localhost:5052/api";
-    let token = "";
+    <nav class="nav">
+        <a href="#/" id="navWelcome" class="navlink">Welcome</a>
+        <a href="#/auth" id="navAuth" class="navlink">Login/Register</a>
+        <a href="#/dashboard" id="navDash" class="navlink">Dashboard</a>
+    </nav>
 
-    async function login() {
-        const res = await fetch(`${API}/Auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: document.getElementById("email").value,
-                password: document.getElementById("password").value
-            })
-        });
+    <div class="top-actions">
+        <div id="pillUser" class="pill hidden"></div>
+        <button id="btnLogout" class="btn ghost hidden">Logout</button>
+    </div>
+</header>
 
-        const data = await res.json();
-        token = data.token;
-        document.getElementById("loginResult").innerText =
-            token ? "Logged in successfully" : "Login failed";
-    }
+<main class="container">
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
 
-    async function loadEvents() {
-        const res = await fetch(`${API}/Events`);
-        const events = await res.json();
+    <!-- WELCOME -->
+    <section id="pageWelcome" class="page">
+        <div class="hero hero-v2">
+            <div class="hero-left">
+                <div class="badge-row">
+                    <span class="tag"><span class="dot"></span> API Demo Client</span>
+                    <span class="tag subtle">JWT • Events • Bookings</span>
+                </div>
 
-        const container = document.getElementById("events");
-        container.innerHTML = "";
+                <h1 class="hero-title">
+                    Campus events, <span class="grad">without</span> the chaos.
+                </h1>
 
-        events.forEach(e => {
-            const div = document.createElement("div");
-            div.className = "event";
-            div.innerHTML = `
-                <strong>${e.title}</strong><br>
-                ${e.location}<br>
-                Capacity: ${e.capacity}<br>
-                <button onclick="bookEvent(${e.id})">Book</button>
-            `;
-            container.appendChild(div);
-        });
-    }
+                <p class="hero-lead muted">
+                    CampusPulse is a clean demo UI for your <b>Campus Events API</b>.
+                    Register or login, browse events, and manage bookings, all with JWT-protected requests.
+                </p>
 
-    async function bookEvent(eventId) {
-        const res = await fetch(`${API}/Bookings`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ eventId })
-        });
+                <div class="hero-actions">
+                    <a class="btn primary" href="#/auth">Get Started</a>
+                    <button class="btn" id="btnPing">Test API Connection</button>
+                </div>
 
-        if (res.ok) {
-            alert("Booking successful");
-        } else {
-            const msg = await res.text();
-            alert("Booking failed" + msg);
-        }
-    }
-</script>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="ic">🔐</div>
+                        <div>
+                            <div class="feature-title">Authentication</div>
+                            <div class="feature-sub">Login/register with JWT + protected routes.</div>
+                        </div>
+                    </div>
 
+                    <div class="feature-card">
+                        <div class="ic">📅</div>
+                        <div>
+                            <div class="feature-title">Events</div>
+                            <div class="feature-sub">List/search events (CRUD-ready API).</div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="ic">🎟️</div>
+                        <div>
+                            <div class="feature-title">Bookings</div>
+                            <div class="feature-sub">Capacity aware + cancel rules supported.</div>
+                        </div>
+                    </div>
+                </div>
+
+                
+            </div>
+
+            <div class="hero-right">
+                <div class="panel panel-v2">
+                    <div class="panel-header">
+                        <div>
+                            <div class="panel-title">Connect your API</div>
+                            <div class="panel-sub">Set the base URL for requests</div>
+                        </div>
+                        <span id="serverStatus" class="pill tiny warn">Not tested</span>
+                    </div>
+
+                    <div class="field">
+                        <label>API Base URL</label>
+                        <div class="input-wrap">
+                            <span class="prefix">🌐</span>
+                            <input id="baseUrl" type="text" placeholder="http://localhost:5052" />
+                        </div>
+                    </div>
+
+                    
+
+                    <div class="cta-row">
+                        <button class="btn primary full" id="btnSaveBaseUrl">Save Base URL</button>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="steps">
+                        <div class="step">
+                            <div class="step-n">1</div>
+                            <div class="step-txt">
+                                <div class="step-title">Run the API</div>
+                                <div class="step-sub muted2">Start with <code>dotnet run</code>.</div>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-n">2</div>
+                            <div class="step-txt">
+                                <div class="step-title">Set base URL</div>
+                                <div class="step-sub muted2">Then test the connection.</div>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-n">3</div>
+                            <div class="step-txt">
+                                <div class="step-title">Login & use dashboard</div>
+                                <div class="step-sub muted2">Browse events and manage bookings.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- AUTH -->
+    <section id="pageAuth" class="page hidden">
+        <div class="grid2">
+            <div class="card">
+                <h2>Create Account</h2>
+                <p class="muted">Register (Student/Organiser/Admin).</p>
+
+                <div class="field">
+                    <label>Name</label>
+                    <input id="regName" type="text" placeholder="" />
+                </div>
+
+                <div class="field">
+                    <label>Email</label>
+                    <input id="regEmail" type="email" placeholder="" />
+                </div>
+
+                <div class="field">
+                    <label>Password</label>
+                    <input id="regPassword" type="password" placeholder="" />
+                </div>
+
+                <div class="field">
+                    <label>Role</label>
+                    <select id="regRole">
+                        <option value="Student">Student</option>
+                        <option value="Organiser">Organiser</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+
+                <button id="btnRegister" class="btn primary full">Register</button>
+                <div class="muted small">After register, you’ll be logged in automatically.</div>
+            </div>
+
+            <div class="card">
+                <h2>Login</h2>
+                <p class="muted">Login to receive a JWT token and access protected endpoints.</p>
+
+                <div class="field">
+                    <label>Email</label>
+                    <input id="loginEmail" type="email" placeholder="" />
+                </div>
+
+                <div class="field">
+                    <label>Password</label>
+                    <input id="loginPassword" type="password" placeholder="" />
+                </div>
+
+                <button id="btnLogin" class="btn primary full">Login</button>
+
+                <div class="divider"></div>
+
+                <div class="muted small">
+                    Auth status: <span id="authStatus" class="pill tiny">Not logged in</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="pageDashboard" class="page hidden">
+        <div class="dash-header">
+            <div>
+                <h2 id="helloTitle">Hello 👋</h2>
+                <p class="muted" id="helloSub">Manage events & bookings.</p>
+            </div>
+
+            <div class="dash-actions">
+                <button class="btn" id="btnRefreshAll">Refresh</button>
+                <button class="btn ghost" id="btnClearToken">Clear Session</button>
+            </div>
+        </div>
+
+        <!-- Management Panels (only for Organiser/Admin) -->
+        <div id="managementRow" class="grid2 wide hidden" style="margin-bottom:18px;">
+            <!-- Categories -->
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h3>Manage Categories</h3>
+                        <p class="muted small">Organiser/Admin only</p>
+                    </div>
+                    <button class="btn small" id="btnLoadCategories">Load</button>
+                </div>
+
+                <div class="field">
+                    <label>New Category Name</label>
+                    <input id="catName" type="text" placeholder="e.g., Sports" />
+                </div>
+                <button class="btn primary full" id="btnCreateCategory">Create Category</button>
+
+                <div class="divider"></div>
+                <div id="categoriesState" class="state muted">No categories loaded yet.</div>
+                <div id="categoriesList" class="hidden"></div>
+            </div>
+
+            <!-- Events -->
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h3>Create Event</h3>
+                        <p class="muted small">Organiser/Admin only</p>
+                    </div>
+                </div>
+
+                <div class="field"><label>Title</label><input id="evTitle" type="text" /></div>
+                <div class="field"><label>Description</label><input id="evDesc" type="text" /></div>
+                <div class="field"><label>Location</label><input id="evLoc" type="text" /></div>
+                <div class="grid2" style="gap:10px">
+                    <div class="field"><label>Start Time</label><input id="evStart" type="datetime-local" /></div>
+                    <div class="field"><label>End Time</label><input id="evEnd" type="datetime-local" /></div>
+                </div>
+                <div class="grid2" style="gap:10px">
+                    <div class="field"><label>Capacity</label><input id="evCap" type="number" value="10" /></div>
+                    <div class="field"><label>Category Id</label><input id="evCategoryId" type="number" value="1" /></div>
+                </div>
+
+                <button class="btn primary full" id="btnCreateEvent">Create Event</button>
+            </div>
+        </div>
+
+
+        <div class="grid2 wide">
+            <!-- EVENTS -->
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h3>Events</h3>
+                        <p class="muted small">Browse events and book a place.</p>
+                    </div>
+                    <div class="row">
+                        <input id="eventSearch" class="input small" placeholder="Search events..." />
+                        <button class="btn small" id="btnLoadEvents">Load</button>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <label>Sort events:</label>
+                    <select id="eventsSortBy">
+                        <option value="startTime">Start Time</option>
+                        <option value="title">Title</option>
+                        <option value="capacity">Capacity</option>
+                    </select>
+
+                    <select id="eventsOrder">
+                        <option value="asc">Asc</option>
+                        <option value="desc">Desc</option>
+                    </select>
+
+                    <button class="btn" onclick="loadEvents()">Load / Refresh</button>
+                </div>
+
+
+                <div id="eventsState" class="state muted">No data loaded yet.</div>
+                <div id="eventsTableWrap" class="hidden"></div>
+            </div>
+
+            <!-- BOOKINGS -->
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <h3 id="bookingsTitle">My Bookings</h3>
+                        <p class="muted small" id="bookingsSub">See active bookings and cancel if needed.</p>
+                    </div>
+
+                    <button class="btn small" id="btnLoadBookings">Load</button>
+
+                    <button class="btn small hidden" id="btnClearEventBookings">Clear</button>
+                </div>
+
+                <div id="studentBookingsToolbar" class="toolbar">
+                    <label>Sort bookings:</label>
+                    <select id="bookingsSortBy">
+                        <option value="bookedAt">Booked At</option>
+                        <option value="eventStartTime">Event Start Time</option>
+                        <option value="eventTitle">Event Title</option>
+                        <option value="status">Status</option>
+                    </select>
+
+                    <select id="bookingsOrder">
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                    </select>
+
+                    <button class="btn" onclick="loadBookings()">Load / Refresh</button>
+                </div>
+
+                <div id="manageBookingsToolbar" class="toolbar hidden">
+                    <div class="muted small" id="manageBookingsHint">
+                        Click <b>View Bookings</b> on an event to see who booked.
+                    </div>
+                </div>
+
+                <div id="bookingsState" class="state muted">No data loaded yet.</div>
+
+                <div id="bookingsList" class="hidden"></div>
+
+                <div id="eventBookingsList" class="hidden"></div>
+            </div>
+
+
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="muted small">
+            CampusPulse demo client • Uses your API endpoints:
+            <code>/api/Auth/register</code>, <code>/api/Auth/login</code>, <code>/api/Events</code>, <code>/api/Bookings</code>
+        </div>
+    </footer>
+</main>
+
+<script src="./app.js"></script>
 </body>
 </html>
