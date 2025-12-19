@@ -9,8 +9,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -20,32 +18,24 @@ jobs:
         with:
           dotnet-version: '8.x'
 
-      - name: Show csproj path (debug)
-        shell: pwsh
-        run: |
-          Get-ChildItem -Recurse -Filter *.csproj | Select-Object FullName
-
       - name: Restore
-        run: dotnet restore "campus-events-api/Campus-events-api/Campus-events-api.csproj"
+        run: dotnet restore Campus-events-api/Campus-events-api.csproj
 
       - name: Build
-        run: dotnet build "campus-events-api/Campus-events-api/Campus-events-api.csproj" -c Release --no-restore
+        run: dotnet build Campus-events-api/Campus-events-api.csproj -c Release --no-restore
 
       - name: Publish
-        run: dotnet publish "campus-events-api/Campus-events-api/Campus-events-api.csproj" -c Release -o "${{ env.DOTNET_ROOT }}/publish" --no-build
+        run: dotnet publish Campus-events-api/Campus-events-api.csproj -c Release -o publish --no-build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app
-          path: ${{ env.DOTNET_ROOT }}/publish
+          path: publish
 
   deploy:
     runs-on: windows-latest
     needs: build
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Download artifact
@@ -64,7 +54,7 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'RichySoaCa2'
-          slot-name: 'Production'
+          app-name: RichySoaCa2
           package: publish
+
 
