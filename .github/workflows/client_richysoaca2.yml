@@ -1,3 +1,4 @@
+
 name: Build and deploy ASP.Net Core app to Azure Web App - RichySoaCa2
 
 on:
@@ -6,32 +7,42 @@ on:
       - client
   workflow_dispatch:
 
+# IMPORTANT: needed so GitHub provides the OIDC token (ACTIONS_ID_TOKEN_REQUEST_URL)
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_PATH: campus-events-api/Campus-events-api/Campus-events-api.csproj
+  PUBLISH_DIR: ${{ github.workspace }}/publish
+
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
+          dotnet-version: "8.x"
 
       - name: Restore
-        run: dotnet restore Campus-events-api/Campus-events-api.csproj
+        run: dotnet restore "${{ env.PROJECT_PATH }}"
 
       - name: Build
-        run: dotnet build Campus-events-api/Campus-events-api.csproj -c Release --no-restore
+        run: dotnet build "${{ env.PROJECT_PATH }}" -c Release --no-restore
 
       - name: Publish
-        run: dotnet publish Campus-events-api/Campus-events-api.csproj -c Release -o publish --no-build
+        run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release -o "${{ env.PUBLISH_DIR }}" --no-build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app
-          path: publish
+          name: dotnet-app
+          path: ${{ env.PUBLISH_DIR }}
 
   deploy:
     runs-on: windows-latest
@@ -41,20 +52,23 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: app
-          path: publish
+          name: dotnet-app
+          path: ${{ github.workspace }}/site
 
-      - name: Login to Azure
+      - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_6ED70B8302954DFAB56F09A2AB3D70AE }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F1EED22A60194EC2AFE538C43EA3E0BA }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_BB8A924DA2F1489A9B351CD33E9374C9 }}
+          auth-type: IDENTITY
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: RichySoaCa2
-          package: publish
+          slot-name: Production
+          package: ${{ github.workspace }}/site
+
 
 
