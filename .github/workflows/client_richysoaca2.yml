@@ -20,15 +20,15 @@ jobs:
           dotnet-version: '8.x'
 
       - name: Restore
-        working-directory: Campus-events-api
+        working-directory: campus-events-api/Campus-events-api
         run: dotnet restore ./Campus-events-api.csproj
 
       - name: Build
-        working-directory: Campus-events-api
+        working-directory: campus-events-api/Campus-events-api
         run: dotnet build ./Campus-events-api.csproj -c Release --no-restore
 
       - name: Publish
-        working-directory: Campus-events-api
+        working-directory: campus-events-api/Campus-events-api
         run: dotnet publish ./Campus-events-api.csproj -c Release -o ${{ env.DOTNET_ROOT }}/publish --no-build
 
       - name: Upload published artifact
@@ -64,5 +64,3 @@ jobs:
           app-name: RichySoaCa2
           slot-name: Production
           package: publish
-
-
